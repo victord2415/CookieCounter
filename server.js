@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const axios = require("axios"); // Import Axios
 require("dotenv").config();
+console.log("Loaded API Key:", process.env.OPENCAGE_API_KEY);
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
