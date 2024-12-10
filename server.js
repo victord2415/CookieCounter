@@ -35,8 +35,6 @@ const cookieLogSchema = new mongoose.Schema({
   country: { type: String, required: true },
   cookieType: { type: String, required: true },
   cookies: { type: Number, required: true },
-  latitude: { type: Number, required: true },
-  longitude: { type: Number, required: true },
 });
 
 const Cookie = mongoose.model("Cookie", cookieSchema);
