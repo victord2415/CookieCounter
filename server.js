@@ -89,22 +89,6 @@ app.post("/add-cookies", async (req, res) => {
   }
 
   try {
-    // Use OpenCage Geocoding API to get latitude and longitude
-    const apiKey = process.env.OPENCAGE_API_KEY; // Store your OpenCage API key in .env
-    const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(
-      `${city}, ${state}, ${country}`
-    )}&key=${apiKey}`;
-
-    const geocodeResponse = await axios.get(geocodeUrl);
-    const locationData = geocodeResponse.data.results[0]?.geometry;
-
-    if (!locationData) {
-      return res.status(400).send("Unable to geocode location.");
-    }
-
-    const latitude = locationData.lat;
-    const longitude = locationData.lng;
-
     // Update total cookie count
     const totalDoc = await Cookie.findOne();
     if (!totalDoc) {
@@ -114,14 +98,14 @@ app.post("/add-cookies", async (req, res) => {
     await totalDoc.save();
 
     // Update cookie type count
-    await CookieType.findOneAndUpdate(
+    const typeDoc = await CookieType.findOneAndUpdate(
       { type: cookieType },
       { $inc: { count: cookies } },
       { upsert: true, new: true }
     );
 
-    // Log the city, state, country, and cookie type with coordinates
-    await new CookieLog({ city, state, country, cookieType, cookies, latitude, longitude }).save();
+    // Log the city, state, country, and cookie type
+    await new CookieLog({ city, state, country, cookieType, cookies }).save();
 
     res.json({
       total: totalDoc.total,
