@@ -89,9 +89,6 @@ app.post("/add-cookies", async (req, res) => {
   try {
     // Update total cookie count
     const totalDoc = await Cookie.findOne();
-    if (!totalDoc) {
-      throw new Error("Total cookie document not found");
-    }
     totalDoc.total += cookies;
     await totalDoc.save();
 
@@ -102,13 +99,16 @@ app.post("/add-cookies", async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // Log the city, state, country, and cookie type
+    // Log the new entry
     await new CookieLog({ city, state, country, cookieType, cookies }).save();
+
+    // Fetch updated locations
+    const updatedLocations = await CookieLog.find({});
 
     res.json({
       total: totalDoc.total,
       types: await CookieType.find({}),
-      locations: await CookieLog.find({}),
+      locations: updatedLocations,
     });
   } catch (err) {
     console.error("Error updating cookies:", err);
