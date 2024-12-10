@@ -1,10 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const axios = require("axios"); // Import Axios
 require("dotenv").config();
-console.log("Loaded API Key:", process.env.OPENCAGE_API_KEY);
-
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,7 +16,7 @@ mongoose
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.log("MongoDB connection error:", err));
 
-// Define Schemas and Models
+// Schemas and Models
 const cookieSchema = new mongoose.Schema({
   total: { type: Number, default: 0 },
 });
@@ -42,32 +39,27 @@ const Cookie = mongoose.model("Cookie", cookieSchema);
 const CookieType = mongoose.model("CookieType", cookieTypeSchema);
 const CookieLog = mongoose.model("CookieLog", cookieLogSchema);
 
-// Initialize the Cookie Counter if it doesn't exist
+// Initialize Cookie Count
 Cookie.findOne().then((doc) => {
   if (!doc) new Cookie({ total: 0 }).save();
 });
 
 // Routes
-
-// Fetch cookie stats
 app.get("/get-cookies", async (req, res) => {
   try {
-    const totalDoc = await Cookie.findOne(); // Fetch total cookie count
-    const types = await CookieType.find({}); // Fetch types and counts
-    const logs = await CookieLog.find({}); // Fetch all logs with city and state
+    const totalDoc = await Cookie.findOne();
+    const types = await CookieType.find({});
+    const logs = await CookieLog.find({});
 
-    // Format locations from logs
     const locations = logs.map((log) => ({
       city: log.city,
       state: log.state,
       country: log.country,
-      type: log.cookieType,
-      count: log.cookies,
-      latitude: log.latitude,
-      longitude: log.longitude,
+      cookieType: log.cookieType,
+      cookies: log.cookies,
+      timestamp: log.timestamp,
     }));
 
-    // Send back all data
     res.json({
       total: totalDoc ? totalDoc.total : 0,
       types,
@@ -79,7 +71,6 @@ app.get("/get-cookies", async (req, res) => {
   }
 });
 
-// Add cookies
 app.post("/add-cookies", async (req, res) => {
   const { cookies, city, state, country, cookieType } = req.body;
 
@@ -88,31 +79,24 @@ app.post("/add-cookies", async (req, res) => {
   }
 
   try {
-    // Update total cookie count
     const totalDoc = await Cookie.findOne();
     if (totalDoc) {
       totalDoc.total += cookies;
       await totalDoc.save();
     }
 
-    // Update or create cookie type count
-    const typeDoc = await CookieType.findOneAndUpdate(
+    await CookieType.findOneAndUpdate(
       { type: cookieType },
       { $inc: { count: cookies } },
       { upsert: true, new: true }
     );
 
-    // Update or create log for city, state, and cookie type, with timestamp
-    const logDoc = await CookieLog.findOneAndUpdate(
+    await CookieLog.findOneAndUpdate(
       { city, state, country, cookieType },
-      {
-        $inc: { cookies },
-        $set: { timestamp: new Date() }, // Add or update timestamp
-      },
+      { $inc: { cookies }, $set: { timestamp: new Date() } },
       { upsert: true, new: true }
     );
 
-    // Fetch updated data to send back
     const updatedTypes = await CookieType.find({});
     const updatedLocations = await CookieLog.find({});
 
@@ -127,7 +111,5 @@ app.post("/add-cookies", async (req, res) => {
   }
 });
 
-
-
-// Start the server
+// Start the Server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
