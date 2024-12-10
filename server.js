@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const axios = require("axios"); // Import Axios
 require("dotenv").config();
 
 const app = express();
@@ -11,7 +12,8 @@ app.use(cors());
 app.use(express.json());
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose
+  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.log("MongoDB connection error:", err));
 
@@ -51,14 +53,17 @@ app.get("/get-cookies", async (req, res) => {
   try {
     const totalDoc = await Cookie.findOne(); // Fetch total cookie count
     const types = await CookieType.find({}); // Fetch types and counts
-    const logs = await CookieLog.find({});  // Fetch all logs with city and state
+    const logs = await CookieLog.find({}); // Fetch all logs with city and state
 
     // Format locations from logs
     const locations = logs.map((log) => ({
       city: log.city,
       state: log.state,
+      country: log.country,
       type: log.cookieType,
       count: log.cookies,
+      latitude: log.latitude,
+      longitude: log.longitude,
     }));
 
     // Send back all data
@@ -72,8 +77,6 @@ app.get("/get-cookies", async (req, res) => {
     res.status(500).send("Error fetching cookie data");
   }
 });
-
-
 
 // Add cookies
 app.post("/add-cookies", async (req, res) => {
@@ -109,7 +112,7 @@ app.post("/add-cookies", async (req, res) => {
     await totalDoc.save();
 
     // Update cookie type count
-    const typeDoc = await CookieType.findOneAndUpdate(
+    await CookieType.findOneAndUpdate(
       { type: cookieType },
       { $inc: { count: cookies } },
       { upsert: true, new: true }
@@ -128,7 +131,6 @@ app.post("/add-cookies", async (req, res) => {
     res.status(500).send("Error updating cookie count");
   }
 });
-
 
 // Start the server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
