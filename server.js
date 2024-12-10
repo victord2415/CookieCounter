@@ -45,6 +45,7 @@ Cookie.findOne().then((doc) => {
 });
 
 // Routes
+// Fetch cookie stats
 app.get("/get-cookies", async (req, res) => {
   try {
     const totalDoc = await Cookie.findOne();
@@ -71,6 +72,7 @@ app.get("/get-cookies", async (req, res) => {
   }
 });
 
+// Add cookies
 app.post("/add-cookies", async (req, res) => {
   const { cookies, city, state, country, cookieType } = req.body;
 
@@ -79,24 +81,28 @@ app.post("/add-cookies", async (req, res) => {
   }
 
   try {
+    // Update total cookie count
     const totalDoc = await Cookie.findOne();
     if (totalDoc) {
       totalDoc.total += cookies;
       await totalDoc.save();
     }
 
+    // Update or create cookie type count
     await CookieType.findOneAndUpdate(
       { type: cookieType },
       { $inc: { count: cookies } },
       { upsert: true, new: true }
     );
 
+    // Update or create log for city, state, and cookie type, with timestamp
     await CookieLog.findOneAndUpdate(
       { city, state, country, cookieType },
       { $inc: { cookies }, $set: { timestamp: new Date() } },
       { upsert: true, new: true }
     );
 
+    // Fetch updated data to send back
     const updatedTypes = await CookieType.find({});
     const updatedLocations = await CookieLog.find({});
 
