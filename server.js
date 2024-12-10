@@ -35,6 +35,7 @@ const cookieLogSchema = new mongoose.Schema({
   country: { type: String, required: true },
   cookieType: { type: String, required: true },
   cookies: { type: Number, required: true },
+  timestamp: { type: Date, default: Date.now },
 });
 
 const Cookie = mongoose.model("Cookie", cookieSchema);
@@ -89,25 +90,35 @@ app.post("/add-cookies", async (req, res) => {
   try {
     // Update total cookie count
     const totalDoc = await Cookie.findOne();
-    totalDoc.total += cookies;
-    await totalDoc.save();
+    if (totalDoc) {
+      totalDoc.total += cookies;
+      await totalDoc.save();
+    }
 
-    // Update cookie type count
+    // Update or create cookie type count
     const typeDoc = await CookieType.findOneAndUpdate(
       { type: cookieType },
       { $inc: { count: cookies } },
       { upsert: true, new: true }
     );
 
-    // Log the new entry
-    await new CookieLog({ city, state, country, cookieType, cookies }).save();
+    // Update or create log for city, state, and cookie type, with timestamp
+    const logDoc = await CookieLog.findOneAndUpdate(
+      { city, state, country, cookieType },
+      {
+        $inc: { cookies },
+        $set: { timestamp: new Date() }, // Add or update timestamp
+      },
+      { upsert: true, new: true }
+    );
 
-    // Fetch updated locations
+    // Fetch updated data to send back
+    const updatedTypes = await CookieType.find({});
     const updatedLocations = await CookieLog.find({});
 
     res.json({
-      total: totalDoc.total,
-      types: await CookieType.find({}),
+      total: totalDoc ? totalDoc.total : 0,
+      types: updatedTypes,
       locations: updatedLocations,
     });
   } catch (err) {
@@ -115,6 +126,8 @@ app.post("/add-cookies", async (req, res) => {
     res.status(500).send("Error updating cookie count");
   }
 });
+
+
 
 // Start the server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
