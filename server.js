@@ -115,21 +115,14 @@ app.get("/get-cookies", async (req, res) => {
 app.post("/add-cookies", upload.single("photo"), async (req, res) => {
   const { cookies, city, state, country, cookieType } = req.body;
 
-  // Validate fields
   if (!cookies || isNaN(Number(cookies)) || Number(cookies) <= 0 || !city || !state || !country || !cookieType) {
     console.log("Invalid request body:", req.body);
     return res.status(400).send("Invalid data. Ensure all fields are provided.");
   }
 
-  // If a file is uploaded, we have direct access to its S3 location in `req.file.location`
   let photoUrl = null;
   if (req.file && req.file.location) {
-    // If you want to do additional processing (like compression) before uploading:
-    // You would need to handle that separately before uploading to S3, as with multer-s3
-    // the file is directly streamed to S3. For simplicity, we will skip compression here.
-    // If compression is required, consider using a temporary storage, processing with sharp,
-    // and then uploading manually to S3.
-    photoUrl = req.file.location;
+    photoUrl = req.file.location; // S3 URL to the uploaded image
   }
 
   try {
