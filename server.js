@@ -1,11 +1,13 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const cors = require("cors");
+const AWS = require("aws-sdk");
 const multer = require("multer");
+const multerS3 = require("multer-s3");
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,16 +15,6 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Ensure 'uploads' directory exists
-const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-  console.log("Created 'uploads' directory");
-}
-
-// Serve static files from 'uploads' directory
-app.use("/uploads", express.static(uploadDir));
 
 // Connect to MongoDB
 mongoose
@@ -47,7 +39,7 @@ const cookieLogSchema = new mongoose.Schema({
   cookieType: { type: String, required: true },
   cookies: { type: Number, required: true },
   timestamp: { type: Date, default: Date.now },
-  photo: { type: String }, // Path to the photo file
+  photo: { type: String }, // This will now be the S3 URL
 });
 
 const Cookie = mongoose.model("Cookie", cookieSchema);
@@ -59,23 +51,25 @@ Cookie.findOne().then((doc) => {
   if (!doc) new Cookie({ total: 0 }).save();
 });
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${file.originalname}`;
-    cb(null, uniqueName);
-  },
+// Configure AWS S3
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION,
 });
 
+// Multer S3 configuration
 const upload = multer({
-  storage,
+  storage: multerS3({
+    s3: s3,
+    bucket: "cookiecounter-uploads", // Your S3 bucket name
+    acl: "public-read", // Allows direct public access to files
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      const uniqueName = `uploads/${Date.now()}-${file.originalname}`;
+      cb(null, uniqueName);
+    },
+  }),
   fileFilter: (req, file, cb) => {
     const fileTypes = /jpeg|jpg|png|gif/;
     const extName = fileTypes.test(path.extname(file.originalname).toLowerCase());
@@ -103,7 +97,7 @@ app.get("/get-cookies", async (req, res) => {
       cookieType: log.cookieType,
       cookies: log.cookies,
       timestamp: log.timestamp,
-      photo: log.photo,
+      photo: log.photo, // Now a S3 URL
     }));
 
     res.json({
@@ -127,20 +121,15 @@ app.post("/add-cookies", upload.single("photo"), async (req, res) => {
     return res.status(400).send("Invalid data. Ensure all fields are provided.");
   }
 
-  let photoPath = null;
-  if (req.file) {
-    try {
-      const compressedPath = `uploads/compressed-${Date.now()}-${req.file.originalname}`;
-      await sharp(req.file.path)
-        .resize(800) // Resize to a max width of 800px
-        .jpeg({ quality: 80 }) // Compress to 80% quality
-        .toFile(compressedPath);
-      fs.unlinkSync(req.file.path); // Remove original file to save space
-      photoPath = compressedPath;
-    } catch (err) {
-      console.error("Error processing photo:", err);
-      return res.status(500).send("Error processing photo.");
-    }
+  // If a file is uploaded, we have direct access to its S3 location in `req.file.location`
+  let photoUrl = null;
+  if (req.file && req.file.location) {
+    // If you want to do additional processing (like compression) before uploading:
+    // You would need to handle that separately before uploading to S3, as with multer-s3
+    // the file is directly streamed to S3. For simplicity, we will skip compression here.
+    // If compression is required, consider using a temporary storage, processing with sharp,
+    // and then uploading manually to S3.
+    photoUrl = req.file.location;
   }
 
   try {
@@ -166,7 +155,7 @@ app.post("/add-cookies", upload.single("photo"), async (req, res) => {
       cookieType,
       cookies: Number(cookies),
       timestamp: new Date(),
-      photo: photoPath,
+      photo: photoUrl,
     });
     await newLog.save();
 
