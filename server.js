@@ -13,7 +13,16 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Ensure 'uploads' directory exists
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+  console.log("Created 'uploads' directory");
+}
+
+// Serve static files from 'uploads' directory
+app.use("/uploads", express.static(uploadDir));
 
 // Connect to MongoDB
 mongoose
