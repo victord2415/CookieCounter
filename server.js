@@ -63,24 +63,45 @@ const upload = multer({
   storage: multerS3({
     s3: s3,
     bucket: "cookiecounter--uploads", // Your S3 bucket name
-    acl: "public-read", // Allows direct public access to files
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: function (req, file, cb) {
-      const uniqueName = `uploads/${Date.now()}-${file.originalname}`;
-      cb(null, uniqueName);
+    acl: "public-read", // Allows public access to files
+    contentType: multerS3.AUTO_CONTENT_TYPE, // Automatically set content type
+    key: (req, file, cb) => {
+      try {
+        // Generate a unique name for the uploaded file
+        const uniqueName = `uploads/${Date.now()}-${file.originalname}`;
+        console.log(`Generated S3 key: ${uniqueName}`);
+        cb(null, uniqueName);
+      } catch (err) {
+        console.error("Error generating S3 key:", err);
+        cb(err); // Pass the error to Multer
+      }
     },
   }),
   fileFilter: (req, file, cb) => {
-    const fileTypes = /jpeg|jpg|png|gif/;
-    const extName = fileTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimeType = fileTypes.test(file.mimetype);
-    if (extName && mimeType) {
-      return cb(null, true);
-    } else {
-      cb(new Error("Only image files are allowed"));
+    try {
+      // Allowed file types
+      const fileTypes = /jpeg|jpg|png|gif/;
+      const extName = fileTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimeType = fileTypes.test(file.mimetype);
+
+      if (extName && mimeType) {
+        console.log("File passed validation:", file.originalname);
+        return cb(null, true);
+      } else {
+        console.error("Invalid file type:", file.originalname);
+        cb(new Error("Only image files are allowed (jpeg, jpg, png, gif)."));
+      }
+    } catch (err) {
+      console.error("Error during file validation:", err);
+      cb(err); // Pass the error to Multer
     }
   },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // Limit file size to 5MB
+  },
 });
+
+module.exports = upload;
 
 // Routes
 // Fetch cookie stats
